@@ -60,37 +60,39 @@ export class TemplateCompiler {
     private async doTagReplacements(tags: Tag[], data: ScopeData, context: TemplateContext): Promise<void> {
 
         for (let tagIndex = 0; tagIndex < tags.length; tagIndex++) {
-
             const tag = tags[tagIndex];
-            data.pathPush(tag);
-            const contentType = this.detectContentType(tag, data);
-            const plugin = this.pluginsLookup[contentType];
-            if (!plugin) {
-                throw new UnknownContentTypeError(
-                    contentType,
-                    tag.rawText,
-                    data.pathString()
-                );
-            }
-
-            if (tag.disposition === TagDisposition.SelfClosed) {
-                await this.simpleTagReplacements(plugin, tag, data, context);
-
-            } else if (tag.disposition === TagDisposition.Open) {
-
-                // get all tags between the open and close tags
-                const closingTagIndex = this.findCloseTagIndex(tagIndex, tag, tags);
-                const scopeTags = tags.slice(tagIndex, closingTagIndex + 1);
-                tagIndex = closingTagIndex;
-
-                // replace container tag
-                const job = plugin.containerTagReplacements(scopeTags, data, context);
-                if (isPromiseLike(job)) {
-                    await job;
+            try {
+                data.pathPush(tag);
+                const contentType = this.detectContentType(tag, data);
+                const plugin = this.pluginsLookup[contentType];
+                if (!plugin) {
+                    throw new UnknownContentTypeError(
+                        contentType,
+                        tag.rawText,
+                        data.pathString()
+                    );
                 }
-            }
 
-            data.pathPop();
+                if (tag.disposition === TagDisposition.SelfClosed) {
+                    await this.simpleTagReplacements(plugin, tag, data, context);
+
+                } else if (tag.disposition === TagDisposition.Open) {
+
+                    // get all tags between the open and close tags
+                    const closingTagIndex = this.findCloseTagIndex(tagIndex, tag, tags);
+                    const scopeTags = tags.slice(tagIndex, closingTagIndex + 1);
+                    tagIndex = closingTagIndex;
+
+                    // replace container tag
+                    const job = plugin.containerTagReplacements(scopeTags, data, context);
+                    if (isPromiseLike(job)) {
+                        await job;
+                    }
+                }
+                data.pathPop();
+            } catch (e) {
+                throw new Error(`Failed complication of tag ${JSON.stringify(tag)}:\n` + (e as Error).stack);
+            }
         }
     }
 
